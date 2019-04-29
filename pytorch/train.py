@@ -35,7 +35,7 @@ from torch.nn.parallel import DistributedDataParallel
 from data_utils import get_lm_corpus
 from mem_transformer import MemTransformerLM
 from lr_finder import LRFinder
-from pytorch_lamb import Lamb, log_lamb_rs
+# from pytorch_lamb import Lamb, log_lamb_rs
 
 parser = argparse.ArgumentParser(description='PyTorch Transformer Language Model')
 parser.add_argument('--logdir', type=str, default='/tmp/default', help="where logs and events go")
@@ -498,8 +498,8 @@ if args.optim.lower() == 'sgd':
     else:
         optimizer = optim.SGD(model.parameters(), lr=args.lr,
             momentum=args.mom)
-elif args.optim.lower() == 'lamb':
-    optimizer = Lamb(model.parameters(), lr=args.lr, weight_decay=args.wd)
+# elif args.optim.lower() == 'lamb':
+#     optimizer = Lamb(model.parameters(), lr=args.lr, weight_decay=args.wd)
 else:
     assert args.optim.lower() == 'adam'
     if args.sample_softmax > 0:
@@ -585,11 +585,19 @@ def evaluate(eval_iter):
     # If the model does not use memory at all, make the ext_len longer.
     # Otherwise, make the mem_len longer and keep the ext_len the same.
     if args.mem_len == 0:
-        model.module.reset_length(args.eval_tgt_len,
-            args.ext_len+args.tgt_len-args.eval_tgt_len, args.mem_len)
+        if args.distributed: 
+            model.module.reset_length(args.eval_tgt_len,
+                args.ext_len+args.tgt_len-args.eval_tgt_len, args.mem_len)
+        else:
+            model.reset_length(args.eval_tgt_len,
+                args.ext_len+args.tgt_len-args.eval_tgt_len, args.mem_len)
     else:
-        model.module.reset_length(args.eval_tgt_len,
-            args.ext_len, args.mem_len+args.tgt_len-args.eval_tgt_len)
+        if args.distributed: 
+            model.module.reset_length(args.eval_tgt_len,
+                args.ext_len, args.mem_len+args.tgt_len-args.eval_tgt_len)
+        else:
+            model.reset_length(args.eval_tgt_len,
+                args.ext_len, args.mem_len+args.tgt_len-args.eval_tgt_len)
 
     # Evaluation
     total_len, total_loss = 0, 0.
@@ -607,7 +615,10 @@ def evaluate(eval_iter):
             total_len += seq_len
 
     # Switch back to the training mode
-    model.module.reset_length(args.tgt_len, args.ext_len, args.mem_len)
+    if args.distributed:
+        model.module.reset_length(args.tgt_len, args.ext_len, args.mem_len)
+    else:
+        model.reset_length(args.tgt_len, args.ext_len, args.mem_len)
     model.train()
 
     return total_loss / total_len
@@ -712,8 +723,8 @@ def train():
             log_tb('loss/ppl', math.exp(cur_loss))
             log_tb('times/step', 1000*elapsed/args.log_interval)
             log_tb('lr', optimizer.param_groups[0]['lr'])
-            if args.optim == 'lamb':
-                log_lamb_rs(optimizer, event_writer, global_token_count)
+#             if args.optim == 'lamb':
+#                 log_lamb_rs(optimizer, event_writer, global_token_count)
 
             time_per_batch = elapsed / args.log_interval
             time_per_sample = time_per_batch / args.batch_size
@@ -833,10 +844,11 @@ def main():
             with timeit('load'):
                 model = torch.load(f, map_location = lambda storage,
                                 loc: storage.cuda(args.local_rank))
-                model = DistributedDataParallel(
-                    model,
-                    device_ids=[args.local_rank],
-                    output_device=args.local_rank)
+                if args.distributed:
+                    model = DistributedDataParallel(
+                        model,
+                        device_ids=[args.local_rank],
+                        output_device=args.local_rank)
     else:
         logger.warn('no model file, using current model for loss')
 
