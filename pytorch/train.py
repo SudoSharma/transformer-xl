@@ -504,8 +504,8 @@ if args.optim.lower() == 'sgd':
     else:
         optimizer = optim.SGD(model.parameters(), lr=args.lr,
             momentum=args.mom)
-# elif args.optim.lower() == 'lamb':
-#     optimizer = Lamb(model.parameters(), lr=args.lr, weight_decay=args.wd)
+elif args.optim.lower() == 'lamb':
+    optimizer = Lamb(model.parameters(), lr=args.lr, weight_decay=args.wd)
 else:
     assert args.optim.lower() == 'adam'
     if args.sample_softmax > 0:
