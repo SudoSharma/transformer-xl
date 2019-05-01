@@ -426,7 +426,7 @@ def evaluate(eval_iter):
     model.eval()
 
     # Have to unwrap twice: DDP & FP16
-    model_to_reset = model.module.module if args.fp16 else args.module
+    model_to_reset = model.module.module if args.fp16 else model.module
     # If the model does not use memory at all, make the ext_len longer.
     # Otherwise, make the mem_len longer and keep the ext_len the same.
     if args.mem_len == 0:
