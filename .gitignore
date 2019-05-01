@@ -6,5 +6,6 @@ __pycache__
 *.sh#
 .DS_Store
 .vscode
-data/
-pytorch/workdir/
+*/*.swp
+*.swp
+.ipynb_checkpoints/
